@@ -1,0 +1,6 @@
+- Agregar la carpeta para debug VSCODE
+- Implementar el api para el proyecto de salud
+- implementar el magic endpoint
+- implemtanr una especie de sesion para los usuarios 
+- agregaremos mongoDB
+- Montar el repo en un entorno en la nube
