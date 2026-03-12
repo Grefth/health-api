@@ -1,9 +1,9 @@
 # Como crear un API con Python y Git 
 
 ## Requisitos
-- Python 3.8 o superior
+- Python 3.12 o superior
 - Git
-- Flask (o cualquier otro framework de tu elección)
+- MongoDB (local o Atlas)
 ## Pasos para crear un API con Python y Git
 1. Crea un nuevo repositorio en GitHub o en tu plataforma de control de versiones preferida.
 2. Clona el repositorio en tu máquina local.
@@ -17,8 +17,7 @@ source .venv/bin/activate  # En Windows: .venv\Scripts\activate
 ```
 4. Instala las dependencias
 ```bash
-uv pip install fastapi
-uv pip freeze > requirements.txt
+uv pip install -r requirements.txt
 ```
 5. Crea la estructura del proyecto
 ```
@@ -42,3 +41,9 @@ git add .
 git commit -m "Initial commit"
 git push origin main
 ```
+
+# Routes
+- /health
+- /set_objective
+- /image 
+- /magic

@@ -1,14 +1,17 @@
-annotated-doc==0.0.4
-annotated-types==0.7.0
-anyio==4.12.1
-click==8.1.8
-exceptiongroup==1.3.1
+# Core dependencies
 fastapi==0.128.8
-h11==0.16.0
-idna==3.11
+uvicorn[standard]==0.39.0
 pydantic==2.12.5
-pydantic-core==2.41.5
-starlette==0.49.3
-typing-extensions==4.15.0
-typing-inspection==0.4.2
-uvicorn==0.39.0
+python-dotenv
+
+# Logging
+loguru
+
+# HTTP client
+httpx
+
+# Database
+motor
+
+# AI/ML
+google-genai

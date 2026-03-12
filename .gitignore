@@ -3,3 +3,10 @@ __pycache__/
 *.pyc
 .env
 .DS_Store
+
+# Logs
+logs/
+*.log
+
+# Scripts temp files
+scripts/__pycache__/
