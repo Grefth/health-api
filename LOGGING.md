@@ -1,22 +1,13 @@
 # Sistema de Logging con Loguru
 
-Este proyecto utiliza **Loguru** para un sistema de logging robusto y fácil de usar.
+Este proyecto utiliza **Loguru** para un sistema de logging simple y efectivo.
 
 ## 📋 Configuración
 
-Los logs se generan en dos formatos:
-
-### 1. **Consola** (stderr)
+Los logs se generan únicamente en **consola (stderr)**:
 - **Nivel**: INFO
 - **Formato**: Colorizado con timestamp, nivel, ubicación y mensaje
-- Ver logs en tiempo real durante el desarrollo
-
-### 2. **Archivos** (directorio `logs/`)
-- **Nivel**: DEBUG (más detallado)
-- **Rotación**: Diaria a medianoche
-- **Retención**: 30 días
-- **Compresión**: ZIP automático de logs antiguos
-- **Formato**: `health_api_YYYY-MM-DD.log`
+- Ver logs en tiempo real durante desarrollo y producción
 
 ## 🔍 Niveles de Log Implementados
 
@@ -61,18 +52,6 @@ Los logs aparecerán coloreados en la consola:
 2026-03-12 10:30:15 | SUCCESS  | app:lifespan:26 - ✓ MongoDB connected successfully: health_db
 ```
 
-### Revisar logs históricos:
-```bash
-# Ver log de hoy
-cat logs/health_api_$(date +%Y-%m-%d).log
-
-# Buscar errores
-grep "ERROR" logs/health_api_*.log
-
-# Buscar por usuario específico
-grep "phone.*12345" logs/health_api_*.log
-```
-
 ## 🐛 Debugging de Errores
 
 Cuando ocurre un error, los logs incluyen:
@@ -107,8 +86,4 @@ En producción, puedes:
 ## 🔒 Consideraciones de Seguridad
 
 Los logs **NO registran**:
-- Imágenes base64 completas (solo tamaño)
-- API keys completas
-- Datos sensibles de usuarios
-
-Siempre verifica que no se filtren secretos en los logs.
+- I
