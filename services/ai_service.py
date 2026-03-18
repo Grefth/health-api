@@ -21,7 +21,7 @@ def _get_client() -> genai.Client:
     """Return an authenticated Gemini client."""
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key or api_key == "your-gemini-api-key-here":
-        logger.error("❌ GEMINI_API_KEY not configured or invalid")
+        logger.error("GEMINI_API_KEY not configured or invalid")
         raise ValueError("GEMINI_API_KEY must be set in .env file")
     logger.debug("Creating Gemini client")
     return genai.Client(api_key=api_key)
@@ -65,13 +65,13 @@ async def analyze_food_image(image_base64: str, mime_type: str = "image/jpeg") -
     Envía una imagen de comida codificada en base64 a Gemini Vision y retorna
     datos nutricionales estructurados como un dict de Python.
     """
-    logger.info(f"🔍 Analyzing food image (mime_type: {mime_type}, size: {len(image_base64)} chars)")
+    logger.info(f"Analyzing food image (mime_type: {mime_type}, size: {len(image_base64)} chars)")
     try:
         client = _get_client()
         image_bytes = base64.b64decode(image_base64)
         logger.debug(f"Image decoded: {len(image_bytes)} bytes")
     except Exception as e:
-        logger.error(f"❌ Failed to decode image or create client: {e}")
+        logger.error(f"Failed to decode image or create client: {e}")
         raise
 
     try:
@@ -85,7 +85,7 @@ async def analyze_food_image(image_base64: str, mime_type: str = "image/jpeg") -
         )
         logger.debug("Gemini response received")
     except Exception as e:
-        logger.error(f"❌ Gemini API request failed: {e}")
+        logger.error(f"Gemini API request failed: {e}")
         raise
 
     raw = response.text.strip()
@@ -97,10 +97,10 @@ async def analyze_food_image(image_base64: str, mime_type: str = "image/jpeg") -
 
     try:
         result = json.loads(raw)
-        logger.success(f"✓ Successfully parsed nutrition data: {result.get('nombre_platillo', 'Desconocido')}")
+        logger.success(f"Successfully parsed nutrition data: {result.get('nombre_platillo', 'Desconocido')}")
         return result
     except json.JSONDecodeError as e:
-        logger.error(f"❌ Failed to parse JSON response: {e}\nRaw: {raw}")
+        logger.error(f"Failed to parse JSON response: {e}\nRaw: {raw}")
         raise
 
 
@@ -149,7 +149,7 @@ async def get_magic_insights(
     Combina los datos de salud del usuario con un prompt de forma libre y pregunta a Gemini
     por una respuesta en texto plano.
     """
-    logger.info(f"🔮 Getting magic insights for prompt: '{prompt[:50]}...'")
+    logger.info(f"Getting magic insights for prompt: '{prompt[:50]}...'")
     logger.debug(f"Context: {len(consumptions)} consumptions, objective: {objective}")
     
     try:
@@ -157,7 +157,7 @@ async def get_magic_insights(
         context = _build_context(consumptions, objective)
         logger.debug(f"Context built: {len(context)} chars")
     except Exception as e:
-        logger.error(f"❌ Failed to build context or create client: {e}")
+        logger.error(f"Failed to build context or create client: {e}")
         raise
 
     full_prompt = (
@@ -174,8 +174,8 @@ async def get_magic_insights(
             contents=full_prompt,
         )
         answer = response.text.strip()
-        logger.success(f"✓ Magic insights generated: {len(answer)} chars")
+        logger.success(f"Magic insights generated: {len(answer)} chars")
         return answer
     except Exception as e:
-        logger.error(f"❌ Gemini API request failed for magic query: {e}")
+        logger.error(f"Gemini API request failed for magic query: {e}")
         raise

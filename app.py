@@ -30,14 +30,14 @@ logger.add(
 async def lifespan(app: FastAPI):
     mongo_uri = os.environ["MONGO_URI"]
     db_name = os.environ.get("DB_NAME")
-    logger.info(f"🚀 Starting Health API - connecting to MongoDB: {db_name}")
+    logger.info(f"tarting Health API - connecting to MongoDB: {db_name}")
     try:
         client = AsyncIOMotorClient(mongo_uri)
         # Try to ping the server
         await client.admin.command("ping")
-        logger.success(f"✓ MongoDB connected successfully: {db_name}")
+        logger.success(f"MongoDB connected successfully: {db_name}")
     except Exception as e:
-        logger.critical(f"❌ Failed to connect to MongoDB: {e}")
+        logger.critical(f"Failed to connect to MongoDB: {e}")
         raise SystemExit(1)
     app.state.mongo_client = client
     app.state.db = client[db_name]
@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI):
     try:
         await db_service.ensure_indexes(app.state.db)
     except Exception as e:
-        logger.warning(f"⚠️ Failed to create indexes (non-fatal): {e}")
+        logger.warning(f"Failed to create indexes (non-fatal): {e}")
     
     yield
     logger.info("Shutting down - closing MongoDB connection")
@@ -110,18 +110,18 @@ async def set_objective(
     phone: str = Path(..., description="Número de teléfono del usuario (identificador único)."),
     body: ObjectiveRequest = ...,
 ):
-    logger.info(f"📝 Setting objective for user {phone}: {body.objective} kcal")
+    logger.info(f"Setting objective for user {phone}: {body.objective} kcal")
     db = app.state.db
     try:
         await db_service.save_objective(db, phone, body.objective)
-        logger.success(f"✓ Objective saved for user {phone}")
+        logger.success(f"Objective saved for user {phone}")
         return {
             "message": "Objective saved successfully",
             "phone": phone,
             "objective_kcal": body.objective,
         }
     except Exception as exc:
-        logger.error(f"❌ Failed to save objective for {phone}: {exc}")
+        logger.error(f"Failed to save objective for {phone}: {exc}")
         raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
 
 
@@ -141,20 +141,20 @@ async def analyze_image(
     phone: str = Path(..., description="Número de teléfono del usuario."),
     body: ImageRequest = ...,
 ):
-    logger.info(f"🖼️  Analyzing food image for user {phone} (mime_type: {body.mime_type})")
+    logger.info(f"Analyzing food image for user {phone} (mime_type: {body.mime_type})")
     db = app.state.db
     try:
         nutrition = await ai_service.analyze_food_image(body.image_base64, body.mime_type)
-        logger.success(f"✓ AI analysis completed for {phone}: {nutrition.get('nombre_platillo', 'Desconocido')}")
+        logger.success(f"AI analysis completed for {phone}: {nutrition.get('nombre_platillo', 'Desconocido')}")
     except Exception as exc:
-        logger.error(f"❌ AI service failed for {phone}: {exc}")
+        logger.error(f"AI service failed for {phone}: {exc}")
         raise HTTPException(status_code=502, detail=f"AI service error: {exc}") from exc
 
     try:
         await db_service.save_consumption(db, phone, nutrition)
-        logger.info(f"✓ Consumption saved for user {phone}")
+        logger.info(f"Consumption saved for user {phone}")
     except Exception as exc:
-        logger.error(f"❌ Failed to save consumption for {phone}: {exc}")
+        logger.error(f"Failed to save consumption for {phone}: {exc}")
         raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
 
     return {
@@ -180,7 +180,7 @@ async def magic_query(
     phone: str = Path(..., description="Número de teléfono del usuario."),
     body: MagicRequest = ...,
 ):
-    logger.info(f"🔮 Magic query for user {phone}: '{body.prompt[:50]}...'")
+    logger.info(f"Magic query for user {phone}: '{body.prompt[:50]}...'")
     db = app.state.db
     try:
         consumptions = await db_service.get_consumptions(db, phone)
@@ -188,14 +188,14 @@ async def magic_query(
         objective = objective_doc["objective"] if objective_doc else None
         logger.debug(f"Retrieved {len(consumptions)} consumptions for {phone}")
     except Exception as exc:
-        logger.error(f"❌ Failed to retrieve data for {phone}: {exc}")
+        logger.error(f"Failed to retrieve data for {phone}: {exc}")
         raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
 
     try:
         answer = await ai_service.get_magic_insights(body.prompt, consumptions, objective)
-        logger.success(f"✓ Magic query completed for {phone}")
+        logger.success(f"Magic query completed for {phone}")
     except Exception as exc:
-        logger.error(f"❌ AI service failed for magic query {phone}: {exc}")
+        logger.error(f"AI service failed for magic query {phone}: {exc}")
         raise HTTPException(status_code=502, detail=f"AI service error: {exc}") from exc
 
     return PlainTextResponse(content=answer)
