@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Path
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from loguru import logger
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -76,6 +77,14 @@ app = FastAPI(
         {"name": "Nutrition", "description": "Análisis nutricional de imágenes de comida con IA."},
         {"name": "Magic", "description": "Consultas de lenguaje natural sobre el historial del usuario."},
     ],
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
