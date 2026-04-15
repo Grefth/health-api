@@ -286,6 +286,28 @@ async def read_today_calories(
         raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
 
 
+@app.get(
+    "/meals/today/{phone}",
+    tags=["Nutrition"],
+    summary="Comidas registradas hoy (UTC)",
+    description=(
+        "Lista consumos del día (medianoche UTC hasta ahora) con `nutrition` completo "
+        "para mostrar detalle en el cliente. La lista corresponde al día UTC actual."
+    ),
+    response_description="Items con id, logged_at y nutrition.",
+)
+async def read_today_meals(
+    phone: str = Path(..., description="Número de teléfono del usuario."),
+):
+    db = app.state.db
+    try:
+        items = await db_service.get_today_meals(db, phone)
+        return {"phone": phone, "items": items}
+    except Exception as exc:
+        logger.error(f"Failed today's meals for {phone}: {exc}")
+        raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
+
+
 @app.post(
     "/magic/{phone}",
     tags=["Magic"],

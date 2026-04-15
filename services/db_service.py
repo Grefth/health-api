@@ -138,6 +138,39 @@ async def get_today_consumed_kcal(db: AsyncIOMotorDatabase, phone: str) -> float
         raise
 
 
+async def get_today_meals(db: AsyncIOMotorDatabase, phone: str) -> List[dict]:
+    """
+    Consumos del día (medianoche UTC → siguiente medianoche), orden cronológico.
+    Cada ítem: id (Mongo _id como string), logged_at (ISO UTC), nutrition (data).
+    """
+    now = datetime.now(timezone.utc)
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = start + timedelta(days=1)
+    logger.debug(f"Today's meals window (UTC) for {phone}: {start} .. {end}")
+    try:
+        cursor = db.consumptions.find(
+            {"phone": phone, "timestamp": {"$gte": start, "$lt": end}},
+            {"data": 1, "timestamp": 1},
+        ).sort("timestamp", 1)
+        docs = await cursor.to_list(length=None)
+        out: List[dict] = []
+        for doc in docs:
+            oid = doc.get("_id")
+            ts = doc.get("timestamp")
+            out.append(
+                {
+                    "id": str(oid) if oid is not None else "",
+                    "logged_at": ts.isoformat() if hasattr(ts, "isoformat") else str(ts),
+                    "nutrition": doc.get("data") or {},
+                }
+            )
+        logger.debug(f"Today's meals for {phone}: {len(out)} items")
+        return out
+    except Exception as e:
+        logger.error(f"Failed to list today's meals for {phone}: {e}")
+        raise
+
+
 # ---------------------------------------------------------------------------
 # Database initialization
 # ---------------------------------------------------------------------------
