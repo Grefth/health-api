@@ -55,8 +55,21 @@ _IMAGE_PROMPT = (
     '    "hierro_mg": number,\n'
     '    "vitamina_c_mg": number\n'
     '  },\n'
+    '  "componentes_detectados": [\n'
+    '    {\n'
+    '      "nombre": "string (visible en la imagen, p. ej. pan integral)",\n'
+    '      "descripcion_porcion": "string (preparación o tamaño, p. ej. Rebanada • ~40g)",\n'
+    '      "calorias_aprox_kcal": number,\n'
+    '      "etiqueta": "string corta en español (p. ej. Proteína, Carbohidrato, Verdura)"\n'
+    '    }\n'
+    "  ],\n"
     '  "notas": "string (contexto opcional o advertencias)"\n'
-    "}"
+    "}\n\n"
+    "Reglas para componentes_detectados:\n"
+    "- Incluye entre 2 y 8 elementos que correspondan **solo** a lo visible en la foto.\n"
+    "- Las calorias_aprox_kcal de los componentes deben ser razonables y su suma aproximada "
+    "debe ser coherente con calorias_totales_kcal.\n"
+    "- No inventes alimentos que no aparezcan en la imagen.\n"
 )
 
 
@@ -97,6 +110,12 @@ async def analyze_food_image(image_base64: str, mime_type: str = "image/jpeg") -
 
     try:
         result = json.loads(raw)
+        raw_components = result.get("componentes_detectados")
+        if not isinstance(raw_components, list):
+            result["componentes_detectados"] = []
+        else:
+            cleaned = [x for x in raw_components if isinstance(x, dict)]
+            result["componentes_detectados"] = cleaned
         logger.success(f"Successfully parsed nutrition data: {result.get('nombre_platillo', 'Desconocido')}")
         return result
     except json.JSONDecodeError as e:

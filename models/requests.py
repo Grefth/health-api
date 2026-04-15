@@ -2,6 +2,8 @@
 Pydantic request models for the Health API.
 """
 
+from typing import Any, Dict
+
 from pydantic import BaseModel, Field
 
 
@@ -40,6 +42,44 @@ class ImageRequest(BaseModel):
                 {
                     "image_base64": "<base64-encoded-image-string>",
                     "mime_type": "image/jpeg",
+                }
+            ]
+        }
+    }
+
+
+class MealLogRequest(BaseModel):
+    """Body for POST /meal/log/{phone} — mismo objeto `nutrition` que devuelve POST /image/{phone}."""
+
+    nutrition: Dict[str, Any] = Field(
+        ...,
+        description="Análisis nutricional del platillo (esquema Gemini / imagen).",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "nutrition": {
+                        "nombre_platillo": "Ensalada",
+                        "calorias_totales_kcal": 320,
+                        "tamaño_porcion_g": 250,
+                        "macronutrientes": {
+                            "proteina_g": 12,
+                            "carbohidratos_g": 28,
+                            "grasa_g": 10,
+                            "fibra_g": 6,
+                            "azucar_g": 8,
+                        },
+                        "micronutrientes": {
+                            "sodio_mg": 400,
+                            "calcio_mg": 120,
+                            "hierro_mg": 2,
+                            "vitamina_c_mg": 45,
+                        },
+                        "notas": "",
+                        "componentes_detectados": [],
+                    }
                 }
             ]
         }

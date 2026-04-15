@@ -107,6 +107,37 @@ async def get_consumptions(db: AsyncIOMotorDatabase, phone: str) -> List[dict]:
         raise
 
 
+async def get_today_consumed_kcal(db: AsyncIOMotorDatabase, phone: str) -> float:
+    """
+    Suma `calorias_totales_kcal` de consumos con timestamp entre medianoche UTC
+    de hoy y el siguiente medianoche UTC.
+    """
+    now = datetime.now(timezone.utc)
+    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = start + timedelta(days=1)
+    logger.debug(f"Today's kcal window (UTC) for {phone}: {start} .. {end}")
+    try:
+        cursor = db.consumptions.find(
+            {"phone": phone, "timestamp": {"$gte": start, "$lt": end}},
+            {"_id": 0, "data": 1},
+        )
+        docs = await cursor.to_list(length=None)
+        total = 0.0
+        for doc in docs:
+            raw = (doc.get("data") or {}).get("calorias_totales_kcal")
+            if raw is None:
+                continue
+            try:
+                total += float(raw)
+            except (TypeError, ValueError):
+                continue
+        logger.debug(f"Today's consumed kcal for {phone}: {total}")
+        return total
+    except Exception as e:
+        logger.error(f"Failed to sum today's kcal for {phone}: {e}")
+        raise
+
+
 # ---------------------------------------------------------------------------
 # Database initialization
 # ---------------------------------------------------------------------------

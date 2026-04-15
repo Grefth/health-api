@@ -7,10 +7,13 @@ from fastapi import FastAPI, HTTPException, Path
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from loguru import logger
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 from motor.motor_asyncio import AsyncIOMotorClient
 import uvicorn
 
-from models.requests import ImageRequest, MagicRequest, ObjectiveRequest
+from models.requests import ImageRequest, MagicRequest, MealLogRequest, ObjectiveRequest
 from services import ai_service, db_service
 
 load_dotenv()
@@ -79,13 +82,41 @@ app = FastAPI(
     ],
 )
 
+
+class BrowserPreflightMiddleware(BaseHTTPMiddleware):
+    """Responde a OPTIONS antes del router (algunos despliegues no aplican bien el preflight vía CORSMiddleware)."""
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method != "OPTIONS":
+            return await call_next(request)
+        if "access-control-request-method" not in request.headers:
+            return await call_next(request)
+        origin = request.headers.get("origin")
+        req_headers = request.headers.get("access-control-request-headers")
+        h = {
+            "Access-Control-Allow-Methods": "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT",
+            "Access-Control-Max-Age": "86400",
+        }
+        if req_headers:
+            h["Access-Control-Allow-Headers"] = req_headers
+        else:
+            h["Access-Control-Allow-Headers"] = "accept, content-type, authorization"
+        if origin:
+            h["Access-Control-Allow-Origin"] = origin
+            h["Vary"] = "Origin"
+        else:
+            h["Access-Control-Allow-Origin"] = "*"
+        return Response(status_code=200, content="OK", headers=h)
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(BrowserPreflightMiddleware)
 
 
 # ---------------------------------------------------------------------------
@@ -134,24 +165,47 @@ async def set_objective(
         raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
 
 
+@app.get(
+    "/objective/{phone}",
+    tags=["Objective"],
+    summary="Obtener objetivo calórico",
+    description=(
+        "Devuelve el objetivo calórico diario guardado para el usuario, o `objective` nulo "
+        "si aún no se ha configurado."
+    ),
+    response_description="Teléfono del usuario y objetivo en kcal (string) o null.",
+)
+async def read_objective(
+    phone: str = Path(..., description="Número de teléfono del usuario (identificador único)."),
+):
+    logger.debug(f"Reading objective for user {phone}")
+    db = app.state.db
+    try:
+        doc = await db_service.get_objective(db, phone)
+        if not doc:
+            return {"phone": phone, "objective": None}
+        return {"phone": phone, "objective": doc.get("objective")}
+    except Exception as exc:
+        logger.error(f"Failed to read objective for {phone}: {exc}")
+        raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
+
+
 @app.post(
     "/image/{phone}",
     tags=["Nutrition"],
-    summary="Analizar imagen de platillo",
+    summary="Analizar imagen de platillo (vista previa)",
     description=(
-        "Recibe una imagen de un platillo de comida codificada en Base64, la envía a "
-        "Google Gemini Vision para análisis nutricional y guarda el resultado en la "
-        "base de datos vinculado al usuario. "
-        "Retorna un JSON con el nombre del plato, calorías totales, macronutrientes y micronutrientes."
+        "Recibe una imagen en Base64, la analiza con Google Gemini Vision y devuelve "
+        "`nutrition` **sin guardar** en base de datos. Para registrar el consumo "
+        "y actualizar el diario, usa POST /meal/log/{phone} con el mismo objeto `nutrition`."
     ),
-    response_description="Datos nutricionales del platillo analizados por la IA.",
+    response_description="Datos nutricionales del platillo (solo lectura / preview).",
 )
 async def analyze_image(
     phone: str = Path(..., description="Número de teléfono del usuario."),
     body: ImageRequest = ...,
 ):
     logger.info(f"Analyzing food image for user {phone} (mime_type: {body.mime_type})")
-    db = app.state.db
     try:
         nutrition = await ai_service.analyze_food_image(body.image_base64, body.mime_type)
         logger.success(f"AI analysis completed for {phone}: {nutrition.get('nombre_platillo', 'Desconocido')}")
@@ -159,17 +213,77 @@ async def analyze_image(
         logger.error(f"AI service failed for {phone}: {exc}")
         raise HTTPException(status_code=502, detail=f"AI service error: {exc}") from exc
 
-    try:
-        await db_service.save_consumption(db, phone, nutrition)
-        logger.info(f"Consumption saved for user {phone}")
-    except Exception as exc:
-        logger.error(f"Failed to save consumption for {phone}: {exc}")
-        raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
-
     return {
         "phone": phone,
         "nutrition": nutrition,
     }
+
+
+@app.post(
+    "/meal/log/{phone}",
+    tags=["Nutrition"],
+    summary="Registrar comida en el diario",
+    description=(
+        "Persiste en MongoDB el objeto `nutrition` (mismo JSON que devolvió POST /image/{phone}). "
+        "Actualiza el historial de consumos del usuario; las calorías del día se reflejan "
+        "al consultar GET /today_calories/{phone}."
+    ),
+    response_description="Confirmación de registro.",
+)
+async def log_meal(
+    phone: str = Path(..., description="Número de teléfono del usuario."),
+    body: MealLogRequest = ...,
+):
+    nutrition = body.nutrition
+    if not isinstance(nutrition, dict) or not nutrition:
+        raise HTTPException(status_code=400, detail="nutrition debe ser un objeto no vacío.")
+
+    raw_kcal = nutrition.get("calorias_totales_kcal")
+    try:
+        kcal_val = float(raw_kcal)
+    except (TypeError, ValueError) as err:
+        raise HTTPException(
+            status_code=400,
+            detail="calorias_totales_kcal es obligatorio y debe ser numérico.",
+        ) from err
+    if kcal_val < 0:
+        raise HTTPException(status_code=400, detail="calorias_totales_kcal inválido.")
+
+    db = app.state.db
+    try:
+        await db_service.save_consumption(db, phone, nutrition)
+        logger.success(f"Meal logged for {phone}: {nutrition.get('nombre_platillo', 'Desconocido')}")
+    except Exception as exc:
+        logger.error(f"Failed to log meal for {phone}: {exc}")
+        raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
+
+    return {
+        "message": "Meal logged successfully",
+        "phone": phone,
+    }
+
+
+@app.get(
+    "/today_calories/{phone}",
+    tags=["Nutrition"],
+    summary="Calorías consumidas hoy (UTC)",
+    description=(
+        "Suma las calorías (`calorias_totales_kcal`) de todos los consumos del usuario "
+        "registrados desde medianoche UTC del día actual hasta ahora."
+    ),
+    response_description="Teléfono y total de kcal consumidas hoy.",
+)
+async def read_today_calories(
+    phone: str = Path(..., description="Número de teléfono del usuario."),
+):
+    logger.debug(f"Today's calories sum for {phone}")
+    db = app.state.db
+    try:
+        consumed = await db_service.get_today_consumed_kcal(db, phone)
+        return {"phone": phone, "consumed_kcal": consumed}
+    except Exception as exc:
+        logger.error(f"Failed today's calories for {phone}: {exc}")
+        raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
 
 
 @app.post(
