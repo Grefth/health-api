@@ -32,7 +32,7 @@ logger.add(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    mongo_uri = os.environ["MONGO_URI"]
+    mongo_uri = os.environ["MONGODB_URI"]
     db_name = os.environ.get("DB_NAME")
     logger.info(f"tarting Health API - connecting to MongoDB: {db_name}")
     try:

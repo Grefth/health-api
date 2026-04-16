@@ -20,7 +20,7 @@ load_dotenv()
 async def clean_duplicates():
     """Elimina consumos duplicados basándose en phone, nombre_platillo y calorías."""
     
-    mongo_uri = os.environ["MONGO_URI"]
+    mongo_uri = os.environ["MONGODB_URI"]
     db_name = os.environ.get("DB_NAME", "health_db")
     
     print(f"🔌 Conectando a MongoDB: {db_name}...")
