@@ -3,9 +3,9 @@ import sys
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Path
+from fastapi import APIRouter, FastAPI, HTTPException, Path
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, RedirectResponse
 from loguru import logger
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -118,12 +118,14 @@ app.add_middleware(
 )
 app.add_middleware(BrowserPreflightMiddleware)
 
+api_router = APIRouter(prefix="/api")
+
 
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
-@app.get(
+@api_router.get(
     "/health",
     tags=["Health"],
     summary="Health check",
@@ -135,7 +137,7 @@ def read_health():
     return {"status": "healthy"}
 
 
-@app.post(
+@api_router.post(
     "/set_objective/{phone}",
     tags=["Objective"],
     summary="Guardar objetivo calórico",
@@ -165,7 +167,7 @@ async def set_objective(
         raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
 
 
-@app.get(
+@api_router.get(
     "/objective/{phone}",
     tags=["Objective"],
     summary="Obtener objetivo calórico",
@@ -190,7 +192,7 @@ async def read_objective(
         raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
 
 
-@app.post(
+@api_router.post(
     "/image/{phone}",
     tags=["Nutrition"],
     summary="Analizar imagen de platillo (vista previa)",
@@ -219,7 +221,7 @@ async def analyze_image(
     }
 
 
-@app.post(
+@api_router.post(
     "/meal/log/{phone}",
     tags=["Nutrition"],
     summary="Registrar comida en el diario",
@@ -263,7 +265,7 @@ async def log_meal(
     }
 
 
-@app.get(
+@api_router.get(
     "/today_calories/{phone}",
     tags=["Nutrition"],
     summary="Calorías consumidas hoy (UTC)",
@@ -286,7 +288,7 @@ async def read_today_calories(
         raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
 
 
-@app.get(
+@api_router.get(
     "/meals/today/{phone}",
     tags=["Nutrition"],
     summary="Comidas registradas hoy (UTC)",
@@ -308,7 +310,7 @@ async def read_today_meals(
         raise HTTPException(status_code=500, detail=f"Database error: {exc}") from exc
 
 
-@app.post(
+@api_router.post(
     "/magic/{phone}",
     tags=["Magic"],
     summary="Consulta IA sobre historial del usuario",
@@ -344,6 +346,14 @@ async def magic_query(
         raise HTTPException(status_code=502, detail=f"AI service error: {exc}") from exc
 
     return PlainTextResponse(content=answer)
+
+
+app.include_router(api_router)
+
+
+@app.get("/", include_in_schema=False)
+async def root_redirect():
+    return RedirectResponse(url="/api", status_code=302)
 
 
 # ---------------------------------------------------------------------------
