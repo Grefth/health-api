@@ -8,9 +8,6 @@ from fastapi import APIRouter, FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, RedirectResponse
 from loguru import logger
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
 from motor.motor_asyncio import AsyncIOMotorClient
 import uvicorn
 
@@ -84,52 +81,15 @@ app = FastAPI(
 )
 
 
-class BrowserPreflightMiddleware(BaseHTTPMiddleware):
-    """Responde a OPTIONS antes del router (algunos despliegues no aplican bien el preflight vía CORSMiddleware)."""
-
-    async def dispatch(self, request: Request, call_next):
-        if request.method != "OPTIONS":
-            return await call_next(request)
-        if "access-control-request-method" not in request.headers:
-            return await call_next(request)
-        origin = request.headers.get("origin")
-        req_headers = request.headers.get("access-control-request-headers")
-        h = {
-            "Access-Control-Allow-Methods": "DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT",
-            "Access-Control-Max-Age": "86400",
-        }
-        if req_headers:
-            h["Access-Control-Allow-Headers"] = req_headers
-        else:
-            h["Access-Control-Allow-Headers"] = "accept, content-type, authorization"
-        if origin:
-            h["Access-Control-Allow-Origin"] = origin
-            h["Vary"] = "Origin"
-        else:
-            h["Access-Control-Allow-Origin"] = "*"
-        return Response(status_code=200, content="OK", headers=h)
-
-
-# El último `add_middleware` es el primero en ejecutarse: CORSMiddleware va al final para quedar
-# en la capa exterior y asegurar encabezados CORS en (casi) todas las respuestas.
-_cors_origins = os.environ.get("CORS_ALLOW_ORIGINS", "").strip()
-if _cors_origins:
-    _allow_origins = [o.strip() for o in _cors_origins.split(",") if o.strip()]
-else:
-    _allow_origins = ["*"]
-if not _allow_origins:
-    _allow_origins = ["*"]
-
-logger.info(f"CORS configured with origins: {_allow_origins}")
-
-app.add_middleware(BrowserPreflightMiddleware)
+# Configuración simplificada de CORS
+# El middleware de FastAPI maneja automáticamente las preflight requests (OPTIONS)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_allow_origins,
+    allow_origins=["*"],  # Permite todos los orígenes
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
-    allow_origin_regex=r"https://.*\.vercel\.app",
+    expose_headers=["*"],
 )
 
 api_router = APIRouter(prefix="/api")
