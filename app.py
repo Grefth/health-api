@@ -120,6 +120,8 @@ else:
 if not _allow_origins:
     _allow_origins = ["*"]
 
+logger.info(f"CORS configured with origins: {_allow_origins}")
+
 app.add_middleware(BrowserPreflightMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -127,6 +129,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_origin_regex=r"https://.*\.vercel\.app",
 )
 
 api_router = APIRouter(prefix="/api")
