@@ -1,9 +1,10 @@
 import os
 import sys
 from contextlib import asynccontextmanager
+from typing import Optional
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, FastAPI, HTTPException, Path
+from fastapi import APIRouter, FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, RedirectResponse
 from loguru import logger
@@ -268,20 +269,33 @@ async def log_meal(
 @api_router.get(
     "/today_calories/{phone}",
     tags=["Nutrition"],
-    summary="Calorías consumidas hoy (UTC)",
+    summary="Calorías consumidas en el día local",
     description=(
-        "Suma las calorías (`calorias_totales_kcal`) de todos los consumos del usuario "
-        "registrados desde medianoche UTC del día actual hasta ahora."
+        "Suma las calorías (`calorias_totales_kcal`) de consumos cuyo `timestamp` cae "
+        "en el día civil local indicado. Envía `tz` (IANA, p. ej. America/Mexico_City) "
+        "y opcionalmente `day` (YYYY-MM-DD en esa zona); sin zona válida se usa el día UTC."
     ),
     response_description="Teléfono y total de kcal consumidas hoy.",
 )
 async def read_today_calories(
     phone: str = Path(..., description="Número de teléfono del usuario."),
+    tz: Optional[str] = Query(
+        None,
+        max_length=120,
+        description="Zona horaria IANA del navegador (p. ej. Europe/Madrid).",
+    ),
+    day: Optional[str] = Query(
+        None,
+        max_length=10,
+        description="Día civil local YYYY-MM-DD; si se omite, «hoy» en `tz`.",
+    ),
 ):
     logger.debug(f"Today's calories sum for {phone}")
     db = app.state.db
     try:
-        consumed = await db_service.get_today_consumed_kcal(db, phone)
+        consumed = await db_service.get_today_consumed_kcal(
+            db, phone, tz_name=tz, local_day=day
+        )
         return {"phone": phone, "consumed_kcal": consumed}
     except Exception as exc:
         logger.error(f"Failed today's calories for {phone}: {exc}")
@@ -291,19 +305,31 @@ async def read_today_calories(
 @api_router.get(
     "/meals/today/{phone}",
     tags=["Nutrition"],
-    summary="Comidas registradas hoy (UTC)",
+    summary="Comidas registradas en el día local",
     description=(
-        "Lista consumos del día (medianoche UTC hasta ahora) con `nutrition` completo "
-        "para mostrar detalle en el cliente. La lista corresponde al día UTC actual."
+        "Lista consumos del día civil local (medianoche a medianoche en `tz`) con "
+        "`nutrition` completo. Parámetros `tz` y `day` como en GET /today_calories/{phone}."
     ),
     response_description="Items con id, logged_at y nutrition.",
 )
 async def read_today_meals(
     phone: str = Path(..., description="Número de teléfono del usuario."),
+    tz: Optional[str] = Query(
+        None,
+        max_length=120,
+        description="Zona horaria IANA del navegador (p. ej. Europe/Madrid).",
+    ),
+    day: Optional[str] = Query(
+        None,
+        max_length=10,
+        description="Día civil local YYYY-MM-DD; si se omite, «hoy» en `tz`.",
+    ),
 ):
     db = app.state.db
     try:
-        items = await db_service.get_today_meals(db, phone)
+        items = await db_service.get_today_meals(
+            db, phone, tz_name=tz, local_day=day
+        )
         return {"phone": phone, "items": items}
     except Exception as exc:
         logger.error(f"Failed today's meals for {phone}: {exc}")

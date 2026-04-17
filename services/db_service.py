@@ -14,10 +14,68 @@ Collections:
   - consumptions : { phone: str, data: dict, timestamp: datetime }
 """
 
-from datetime import datetime, timezone, timedelta
-from typing import List, Optional
-from motor.motor_asyncio import AsyncIOMotorDatabase
+from datetime import date, datetime, timedelta, timezone
+from typing import List, Optional, Tuple
+from zoneinfo import ZoneInfo
+
 from loguru import logger
+from motor.motor_asyncio import AsyncIOMotorDatabase
+
+
+def _parse_calendar_day(day_str: str) -> Optional[date]:
+    try:
+        parts = day_str.strip().split("-")
+        if len(parts) != 3:
+            return None
+        y, mo, d = (int(parts[0]), int(parts[1]), int(parts[2]))
+        return date(y, mo, d)
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def consumption_day_window_utc(
+    tz_name: Optional[str],
+    local_day: Optional[str],
+) -> Tuple[datetime, datetime]:
+    """
+    Intervalo [start, end) en UTC para consultar consumos de un día civil local.
+
+    Si `tz_name` es una zona IANA válida, se usa ese huso; si además `local_day`
+    es YYYY-MM-DD, ese día en esa zona. Si falta o es inválido el día, se usa
+    «hoy» en esa zona. Si la zona es inválida o vacía, se conserva el
+    comportamiento anterior (medianoche a medianoche UTC del día UTC actual).
+    """
+    name = (tz_name or "").strip()
+    if not name or len(name) > 120:
+        now = datetime.now(timezone.utc)
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        return start, start + timedelta(days=1)
+
+    try:
+        tz = ZoneInfo(name)
+    except Exception:
+        now = datetime.now(timezone.utc)
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        return start, start + timedelta(days=1)
+
+    parsed = _parse_calendar_day(local_day) if local_day else None
+    if parsed is None:
+        parsed = datetime.now(tz).date()
+
+    start_local = datetime(
+        parsed.year,
+        parsed.month,
+        parsed.day,
+        0,
+        0,
+        0,
+        0,
+        tzinfo=tz,
+    )
+    end_local = start_local + timedelta(days=1)
+    start_utc = start_local.astimezone(timezone.utc)
+    end_utc = end_local.astimezone(timezone.utc)
+    return start_utc, end_utc
 
 
 # ---------------------------------------------------------------------------
@@ -107,15 +165,19 @@ async def get_consumptions(db: AsyncIOMotorDatabase, phone: str) -> List[dict]:
         raise
 
 
-async def get_today_consumed_kcal(db: AsyncIOMotorDatabase, phone: str) -> float:
+async def get_today_consumed_kcal(
+    db: AsyncIOMotorDatabase,
+    phone: str,
+    *,
+    tz_name: Optional[str] = None,
+    local_day: Optional[str] = None,
+) -> float:
     """
-    Suma `calorias_totales_kcal` de consumos con timestamp entre medianoche UTC
-    de hoy y el siguiente medianoche UTC.
+    Suma `calorias_totales_kcal` de consumos cuyo timestamp cae en el día civil
+    indicado (zona IANA + fecha local), o en el día UTC actual si no hay zona válida.
     """
-    now = datetime.now(timezone.utc)
-    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    end = start + timedelta(days=1)
-    logger.debug(f"Today's kcal window (UTC) for {phone}: {start} .. {end}")
+    start, end = consumption_day_window_utc(tz_name, local_day)
+    logger.debug(f"Today's kcal window for {phone}: {start} .. {end} (tz={tz_name!r}, day={local_day!r})")
     try:
         cursor = db.consumptions.find(
             {"phone": phone, "timestamp": {"$gte": start, "$lt": end}},
@@ -138,15 +200,19 @@ async def get_today_consumed_kcal(db: AsyncIOMotorDatabase, phone: str) -> float
         raise
 
 
-async def get_today_meals(db: AsyncIOMotorDatabase, phone: str) -> List[dict]:
+async def get_today_meals(
+    db: AsyncIOMotorDatabase,
+    phone: str,
+    *,
+    tz_name: Optional[str] = None,
+    local_day: Optional[str] = None,
+) -> List[dict]:
     """
-    Consumos del día (medianoche UTC → siguiente medianoche), orden cronológico.
+    Consumos del día civil local (o UTC si no hay zona válida), orden cronológico.
     Cada ítem: id (Mongo _id como string), logged_at (ISO UTC), nutrition (data).
     """
-    now = datetime.now(timezone.utc)
-    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    end = start + timedelta(days=1)
-    logger.debug(f"Today's meals window (UTC) for {phone}: {start} .. {end}")
+    start, end = consumption_day_window_utc(tz_name, local_day)
+    logger.debug(f"Today's meals window for {phone}: {start} .. {end} (tz={tz_name!r}, day={local_day!r})")
     try:
         cursor = db.consumptions.find(
             {"phone": phone, "timestamp": {"$gte": start, "$lt": end}},
