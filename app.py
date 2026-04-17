@@ -110,14 +110,24 @@ class BrowserPreflightMiddleware(BaseHTTPMiddleware):
         return Response(status_code=200, content="OK", headers=h)
 
 
+# El último `add_middleware` es el primero en ejecutarse: CORSMiddleware va al final para quedar
+# en la capa exterior y asegurar encabezados CORS en (casi) todas las respuestas.
+_cors_origins = os.environ.get("CORS_ALLOW_ORIGINS", "").strip()
+if _cors_origins:
+    _allow_origins = [o.strip() for o in _cors_origins.split(",") if o.strip()]
+else:
+    _allow_origins = ["*"]
+if not _allow_origins:
+    _allow_origins = ["*"]
+
+app.add_middleware(BrowserPreflightMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allow_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(BrowserPreflightMiddleware)
 
 api_router = APIRouter(prefix="/api")
 
